@@ -85,7 +85,7 @@ public class BotTwoTeleopPreset extends OpMode {
     private CRServo rightPusher = null;
 
 
-    private Servo Sorter = null;
+    private boolean shotTog = false;
 
 
 
@@ -135,7 +135,6 @@ public class BotTwoTeleopPreset extends OpMode {
         shooter = hardwareMap.get(DcMotor.class, "shooter");
         leftPusher = hardwareMap.get(CRServo.class, "leftPusher");
         rightPusher = hardwareMap.get(CRServo.class, "rightPusher");
-        Sorter = hardwareMap.get(Servo.class, "sorter");
 
 
         /*
@@ -208,49 +207,53 @@ public class BotTwoTeleopPreset extends OpMode {
     public void loop() {
 
 
-        Sorter.setPosition(0);
+        if(gamepad2.a) {
+            shotTog = true;
+        }
+        else if (gamepad2.b) {
+            shotTog = false;
+        }
 
-
-        if(gamepad2.x) {
-            shooter.setPower(-0.65);
-        }
-        else if (gamepad2.y) {
-            shooter.setPower(-0.65);
-        }
-        else if(gamepad2.b) {
-            shooter.setPower(-0.85);
-        }
-        else if(gamepad2.a) {
-            shooter.setPower(-1);
+        if (shotTog) {
+            shooter.setPower(-0.55);
         }
         else {
             shooter.setPower(0);
         }
+        //else if (gamepad2.y) {
+        // shooter.setPower(-.65);
+        // }
+        //else if(gamepad2.b) {
+        // shooter.setPower(-0.8);
+        // }
+        // else if(gamepad2.a) {
+        // shooter.setPower(-1);
+        //}
+
 
 
 
         if (gamepad1.right_bumper){
-            intake.setPower(0);
+            intake.setPower(-1);
         }
         else{
-            intake.setPower(1);
+            intake.setPower(0);
         }
 
         if (gamepad2.left_bumper){
             leftPusher.setPower(1);
         }
         else{
-            leftPusher.setPower(-0.025);
+            leftPusher.setPower(0);
         }
 
         if(gamepad2.right_bumper){
             rightPusher.setPower(-1);
         }
         else{
-            rightPusher.setPower(0.025);
+            rightPusher.setPower(0);
         }
 
-        telemetry.addData("position", Sorter.getPosition());
         /*
          * Here we call a function called arcadeDrive. The arcadeDrive function takes the input from
          * the joysticks, and applies power to the left and right drive motor to move the robot
