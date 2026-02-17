@@ -1,119 +1,70 @@
-/*
- * Copyright (c) 2025 FIRST
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted (subject to the limitations in the disclaimer below) provided that
- * the following conditions are met:
- *
- * Redistributions of source code must retain the above copyright notice, this list
- * of conditions and the following disclaimer.
- *
- * Redistributions in binary form must reproduce the above copyright notice, this
- * list of conditions and the following disclaimer in the documentation and/or
- * other materials provided with the distribution.
- *
- * Neither the name of FIRST nor the names of its contributors may be used to
- * endorse or promote products derived from this software without specific prior
- * written permission.
- *
- * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS
- * LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
- * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 package org.firstinspires.ftc.teamcode;
 
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
+import static com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.FORWARD;
+import static com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
+
+import android.graphics.Color;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.Servo;
-
-/*
- * This file includes a teleop (driver-controlled) file for the goBILDA® StarterBot for the
- * 2025-2026 FIRST® Tech Challenge season DECODE™. It leverages a differential/Skid-Steer
- * system for robot mobility, one high-speed motor driving two "launcher wheels", and two servos
- * which feed that launcher.
- *
- * Likely the most niche concept we'll use in this example is closed-loop motor velocity control.
- * This control method reads the current speed as reported by the motor's encoder and applies a varying
- * amount of power to reach, and then hold a target velocity. The FTC SDK calls this control method
- * "RUN_USING_ENCODER". This contrasts to the default "RUN_WITHOUT_ENCODER" where you control the power
- * applied to the motor directly.
- * Since the dynamics of a launcher wheel system varies greatly from those of most other FTC mechanisms,
- * we will also need to adjust the "PIDF" coefficients with some that are a better fit for our application.
- */
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.NormalizedRGBA;
+import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 @TeleOp(name = "BotTwoTeleopPreset", group = "StarterBot")
-//@Disabled
 public class BotTwoTeleopPreset extends OpMode {
-
     /*
      * When we control our launcher motor, we are using encoders. These allow the control system
      * to read the current speed of the motor and apply more or less power to keep it at a constant
      * velocity. Here we are setting the target, and minimum velocity that the launcher should run
      * at. The minimum velocity is a threshold for determining when to fire.
      */
-    final double LAUNCHER_TARGET_VELOCITY = 1125;
-    final double LAUNCHER_MIN_VELOCITY = 1075;
 
-    // Declare OpMode members.
-    private DcMotor leftFrontDrive = null;
-    private DcMotor rightFrontDrive = null;
-    private DcMotor leftBackDrive = null;
-    private DcMotor rightBackDrive = null;
-    private DcMotor intake = null;
+    /* =======================================================================================
+     * Class level variables
+     * ======================================================================================= */
+    private static final double SHOOTER_VELOCITY_PRESET = 1200;
+    private static final double LEFT_PUSHER_VELOCITY = -2400;
+    private static final double RIGHT_PUSHER_VELOCITY = 2400;
+    private static final double INTAKE_POWER = -1.0;
+    private static final float COLOR_SENSOR_GAIN = 5;
+    private static final int MAXIMUM_INTAKE_BALL_COUNT = 3;
 
+    /* =======================================================================================
+     * Hardware
+     * ======================================================================================= */
+    private DcMotor leftFrontDrive;
+    private DcMotor rightFrontDrive;
+    private DcMotor leftBackDrive;
+    private DcMotor rightBackDrive;
+    private DcMotor intake;
 
-    private DcMotor shooter = null;
+    private DcMotorEx shooter;
+    private DcMotorEx leftPusher;
+    private DcMotorEx rightPusher;
 
+    private NormalizedColorSensor colorSensorRightFront;
+    private NormalizedColorSensor colorSensorLeftFront;
+    private NormalizedColorSensor colorSensorRightBack;
+    private NormalizedColorSensor colorSensorLeftBack;
 
-    private CRServo leftPusher = null;
-
-
-    private CRServo rightPusher = null;
-
-
-    private boolean shotTog = false;
-
-
-
-
-    /*
-     * TECH TIP: State Machines
-     * We use a "state machine" to control our launcher motor and feeder servos in this program.
-     * The first step of a state machine is creating an enum that captures the different "states"
-     * that our code can be in.
-     * The core advantage of a state machine is that it allows us to continue to loop through all
-     * of our code while only running specific code when it's necessary. We can continuously check
-     * what "State" our machine is in, run the associated code, and when we are done with that step
-     * move on to the next state.
-     * This enum is called the "LaunchState". It reflects the current condition of the shooter
-     * motor and we move through the enum when the user asks our code to fire a shot.
-     * It starts at idle, when the user requests a launch, we enter SPIN_UP where we get the
-     * motor up to speed, once it meets a minimum speed then it starts and then ends the launch process.
-     * We can use higher level code to cycle through these states. But this allows us to write
-     * functions and autonomous routines in a way that avoids loops within loops, and "waits".
-     */
-
-
-
-    // Setup a variable for each drive wheel to save power level for telemetry
+    /* =======================================================================================
+     * Drive telemetry
+     * ======================================================================================= */
     double leftFrontPower;
     double rightFrontPower;
     double leftBackPower;
     double rightBackPower;
+    int ballCount = 0;
+    int ballCountRB = 0;
+    int ballCountLB = 0;
+    int ballCountRF = 0;
+    int ballCountLF = 0;
+
+
 
     /*
      * Code to run ONCE when the driver hits INIT
@@ -121,64 +72,8 @@ public class BotTwoTeleopPreset extends OpMode {
     @Override
     public void init() {
 
-
-        /*
-         * Initialize the hardware variables. Note that the strings used here as parameters
-         * to 'get' must correspond to the names assigned during the robot configuration
-         * step.
-         */
-        leftFrontDrive = hardwareMap.get(DcMotor.class, "leftFront");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "rightFront");
-        leftBackDrive = hardwareMap.get(DcMotor.class, "leftBack");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "rightBack");
-        intake = hardwareMap.get(DcMotor.class, "intake");
-        shooter = hardwareMap.get(DcMotor.class, "shooter");
-        leftPusher = hardwareMap.get(CRServo.class, "leftPusher");
-        rightPusher = hardwareMap.get(CRServo.class, "rightPusher");
-
-
-        /*
-         * To drive forward, most robots need the motor on one side to be reversed,
-         * because the axles point in opposite directions. Pushing the left stick forward
-         * MUST make robot go forward. So adjust these two lines based on your first test drive.
-         * Note: The settings here assume direct drive on left and right wheels. Gear
-         * Reduction or 90 Deg drives may require direction flips
-         */
-        leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
-        leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
-
-        /*
-         * Here we set our launcher to the RUN_USING_ENCODER runmode.
-         * If you notice that you have no control over the velocity of the motor, it just jumps
-         * right to a number much higher than your set point, make sure that your encoders are plugged
-         * into the port right beside the motor itself. And that the motors polarity is consistent
-         * through any wiring.
-         */
-
-        /*
-         * Setting zeroPowerBehavior to BRAKE enables a "brake mode". This causes the motor to
-         * slow down much faster when it is coasting. This creates a much more controllable
-         * drivetrain. As the robot stops much quicker.
-         */
-        leftFrontDrive.setZeroPowerBehavior(BRAKE);
-        rightFrontDrive.setZeroPowerBehavior(BRAKE);
-        leftBackDrive.setZeroPowerBehavior(BRAKE);
-        rightBackDrive.setZeroPowerBehavior(BRAKE);
-
-        /*
-         * set Feeders to an initial value to initialize the servo controller
-         */
-
-
-
-
-        /*
-         * Much like our drivetrain motors, we set the left feeder servo to reverse so that they
-         * both work to feed the ball into the robot.
-         */
-
+        mapHardware();
+        configureMotors();
 
         /*
          * Tell the driver that initialization is complete.
@@ -205,72 +100,12 @@ public class BotTwoTeleopPreset extends OpMode {
      */
     @Override
     public void loop() {
-
-
-        if(gamepad2.a) {
-            shotTog = true;
-        }
-        else if (gamepad2.b) {
-            shotTog = false;
-        }
-
-        if (shotTog) {
-            shooter.setPower(-0.55);
-        }
-        else {
-            shooter.setPower(0);
-        }
-        //else if (gamepad2.y) {
-        // shooter.setPower(-.65);
-        // }
-        //else if(gamepad2.b) {
-        // shooter.setPower(-0.8);
-        // }
-        // else if(gamepad2.a) {
-        // shooter.setPower(-1);
-        //}
-
-
-
-
-        if (gamepad1.right_bumper){
-            intake.setPower(-1);
-        }
-        else{
-            intake.setPower(0);
-        }
-
-        if (gamepad2.left_bumper){
-            leftPusher.setPower(1);
-        }
-        else{
-            leftPusher.setPower(0);
-        }
-
-        if(gamepad2.right_bumper){
-            rightPusher.setPower(-1);
-        }
-        else{
-            rightPusher.setPower(0);
-        }
-
-        /*
-         * Here we call a function called arcadeDrive. The arcadeDrive function takes the input from
-         * the joysticks, and applies power to the left and right drive motor to move the robot
-         * as requested by the driver. "arcade" refers to the control style we're using here.
-         * Much like a classic arcade game, when you move the left joystick forward both motors
-         * work to drive the robot forward, and when you move the right joystick left and right
-         * both motors work to rotate the robot. Combinations of these inputs can be used to create
-         * more complex maneuvers.
-         */
-        mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        handleShooter();
+        handleIntake();
+        handlePushers();
+        handleDrive();
+        updateTelemetry();
     }
-
-    /*
-     * Here we give the user control of the speed of the launcher motor without automatically
-     * queuing a shot.
-     */
-
 
     /*
      * Code to run ONCE after the driver hits STOP
@@ -279,13 +114,177 @@ public class BotTwoTeleopPreset extends OpMode {
     public void stop() {
     }
 
-    void mecanumDrive(double forward, double strafe, double rotate){
+    /* =======================================================================================
+     * Hardware setup
+     * ======================================================================================= */
+
+    private void mapHardware() {
+        /*
+         * Initialize the hardware variables. Note that the strings used here as parameters
+         * to 'get' must correspond to the names assigned during the robot configuration
+         * step.
+         */
+
+        //-- Wheels
+        leftFrontDrive = hardwareMap.get(DcMotor.class, "leftFront");
+        rightFrontDrive = hardwareMap.get(DcMotor.class, "rightFront");
+        leftBackDrive = hardwareMap.get(DcMotor.class, "leftBack");
+        rightBackDrive = hardwareMap.get(DcMotor.class, "rightBack");
+
+        //-- Shooter, Intake and Pusher
+        shooter = hardwareMap.get(DcMotorEx.class, "shooter");
+        intake = hardwareMap.get(DcMotor.class, "intake");
+        leftPusher = hardwareMap.get(DcMotorEx.class, "leftPusher");
+        rightPusher = hardwareMap.get(DcMotorEx.class, "rightPusher");
+
+        //-- Color Sensors
+        colorSensorRightFront = hardwareMap.get(NormalizedColorSensor.class, "right_front");
+        colorSensorLeftFront = hardwareMap.get(NormalizedColorSensor.class, "left_front");
+        colorSensorRightBack = hardwareMap.get(NormalizedColorSensor.class, "right_back");
+        colorSensorLeftBack = hardwareMap.get(NormalizedColorSensor.class, "left_back");
+
+        //-- Setting high gain for the color sensors helps detect balls quickly as they pass by.
+        colorSensorRightFront.setGain(COLOR_SENSOR_GAIN);
+        colorSensorLeftFront.setGain(COLOR_SENSOR_GAIN);
+        colorSensorRightBack.setGain(COLOR_SENSOR_GAIN);
+        colorSensorLeftBack.setGain(COLOR_SENSOR_GAIN);
+    }
+
+    private void configureMotors() {
+        shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(280, 0, 0, 14.8177));
+        shooter.setDirection(REVERSE);
+
+        leftPusher.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(22, 0, 0, 15.049));
+        leftPusher.setDirection(FORWARD);
+
+        rightPusher.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(14, 0, 0, 11.6928));
+        rightPusher.setDirection(FORWARD);
+
+        /*
+         * To drive forward, most robots need the motor on one side to be reversed,
+         * because the axles point in opposite directions. Pushing the left stick forward
+         * MUST make robot go forward. So adjust these two lines based on your first test drive.
+         * Note: The settings here assume direct drive on left and right wheels. Gear
+         * Reduction or 90 Deg drives may require direction flips
+         */
+        leftFrontDrive.setDirection(REVERSE);
+        leftBackDrive.setDirection(REVERSE);
+        rightFrontDrive.setDirection(FORWARD);
+        rightBackDrive.setDirection(FORWARD);
+
+        /*
+         * Setting zeroPowerBehavior to BRAKE enables a "brake mode". This causes the motor to
+         * slow down much faster when it is coasting. This creates a much more controllable
+         * drivetrain. As the robot stops much quicker.
+         */
+        leftFrontDrive.setZeroPowerBehavior(BRAKE);
+        rightFrontDrive.setZeroPowerBehavior(BRAKE);
+        leftBackDrive.setZeroPowerBehavior(BRAKE);
+        rightBackDrive.setZeroPowerBehavior(BRAKE);
+    }
+
+    /* =======================================================================================
+     * Subsystem handlers
+     * ======================================================================================= */
+
+    private void handleShooter() {
+        if (gamepad2.a) {
+            shooter.setVelocity(SHOOTER_VELOCITY_PRESET);
+        } else if (gamepad2.b) {
+            shooter.setPower(0);
+        }
+    }
+
+    private void handleIntake() {
+        ballCount = ballCountRF + ballCountLF + ballCountRB + ballCountLB;
+
+
+        if (isBallDetected(colorSensorRightFront)) {
+            ballCountRF = 1;
+        }
+        else {
+            ballCountRF = 0;
+        }
+
+        if (isBallDetected(colorSensorLeftFront)) {
+            ballCountLF = 1;
+        }
+        else {
+            ballCountLF = 0;
+        }
+
+        if (isBallDetected(colorSensorRightBack)) {
+            ballCountRB = 1;
+        }
+        else {
+            ballCountRB = 0;
+        }
+
+
+        if (isBallDetected(colorSensorLeftBack)) {
+            ballCountLB = 1;
+        }
+        else {
+            ballCountLB = 0;
+        }
+
+        if (gamepad1.right_bumper && ballCount < MAXIMUM_INTAKE_BALL_COUNT) {
+            intake.setPower(INTAKE_POWER);
+        }
+        else {
+            intake.setPower(0);
+
+            // Optional: Rumble gamepad to let driver know they are full!
+            if (ballCount >= MAXIMUM_INTAKE_BALL_COUNT && gamepad1.right_bumper) {
+                gamepad1.rumble(200);
+            }
+        }
+        // Override for intake
+        if (gamepad1.left_bumper) {
+            intake.setPower(INTAKE_POWER);
+        }
+    }
+
+    private void handlePushers() {
+        if (gamepad2.left_bumper) {
+            leftPusher.setVelocity(LEFT_PUSHER_VELOCITY);
+            if (gamepad1.right_bumper) {
+                intake.setPower(INTAKE_POWER);
+            }
+        } else {
+            leftPusher.setVelocity(0);
+        }
+
+        if (gamepad2.right_bumper) {
+            rightPusher.setVelocity(RIGHT_PUSHER_VELOCITY);
+            if (gamepad1.right_bumper) {
+                intake.setPower(INTAKE_POWER);
+            }
+
+        } else {
+            rightPusher.setVelocity(0);
+        }
+    }
+
+    private void handleDrive() {
+        mecanumDrive(
+                -gamepad1.left_stick_y,
+                gamepad1.left_stick_x,
+                gamepad1.right_stick_x
+        );
+    }
+
+    /* =======================================================================================
+     * Drive math
+     * ======================================================================================= */
+
+    private void mecanumDrive(double forward, double strafe, double rotate) {
 
         /* the denominator is the largest motor power (absolute value) or 1
          * This ensures all the powers maintain the same ratio,
          * but only if at least one is out of the range [-1, 1]
          */
-        double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
+        double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1.0);
 
         leftFrontPower = (forward + strafe + rotate) / denominator;
         rightFrontPower = (forward - strafe - rotate) / denominator;
@@ -296,8 +295,35 @@ public class BotTwoTeleopPreset extends OpMode {
         rightFrontDrive.setPower(rightFrontPower);
         leftBackDrive.setPower(leftBackPower);
         rightBackDrive.setPower(rightBackPower);
-
     }
 
+    /* =======================================================================================
+     * Telemetry
+     * ======================================================================================= */
 
+    private void updateTelemetry() {
+        telemetry.addData("Ball Count", ballCount);
+        telemetry.addData("Shooter Velocity", shooter.getVelocity());
+        telemetry.addData("Left Pusher Velocity", leftPusher.getVelocity());
+        telemetry.addData("Right Pusher Velocity", rightPusher.getVelocity());
+        telemetry.update();
+    }
+
+    private boolean isBallDetected(NormalizedColorSensor colorSensor) {
+        // We only care about Value (brightness) for presence detection
+        // If Value > 0.05, something is in front of the colorSensor
+
+        float[] hsv = new float[3];
+
+        // Get the colors and convert them to an Android color integer
+        NormalizedRGBA colors = colorSensor.getNormalizedColors();
+
+        // This converts the RGBA to HSV and stores it in our hsv array
+        Color.colorToHSV(colors.toColor(), hsv);
+
+        // hsv[2] is the 'Value' (brightness). If it's greater than 0.05, a ball is likely present.
+        // Note: If the intake shuts off too early, try increasing the threshold from 0.05 to 0.10.
+        //       If it doesn't shut off at all, lower it to 0.03.
+        return hsv[2] > 0.05;
+    }
 }
