@@ -502,13 +502,13 @@ public class TrialAutonomous_DBG
                 }
             }
             else {
-                if (timeElapsed >= 1.0) {
-                    leftPusher.setPower(-pusherVelocity);
-                    rightPusher.setPower(1);
+                if (timeElapsed >= 1.4) {
+                    leftPusher.setVelocity(-pusherVelocity);
+
                 }
 
-                if (timeElapsed >= 1.65) {
-                    rightPusher.setPower(pusherVelocity);
+                if (timeElapsed >= 1.6) {
+                    rightPusher.setVelocity(pusherVelocity);
                     intake.setPower(1);
 
                 }

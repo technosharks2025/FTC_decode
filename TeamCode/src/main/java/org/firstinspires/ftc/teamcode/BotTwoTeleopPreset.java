@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
-
+import com.pedropathing.util.Timer;
 @TeleOp(name = "BotTwoTeleopPreset", group = "StarterBot")
 public class BotTwoTeleopPreset extends OpMode {
     /*
@@ -33,6 +33,8 @@ public class BotTwoTeleopPreset extends OpMode {
     private static final float COLOR_SENSOR_GAIN = 5;
     private static final int MAXIMUM_INTAKE_BALL_COUNT = 3;
 
+    Timer timer;
+
     /* =======================================================================================
      * Hardware
      * ======================================================================================= */
@@ -51,6 +53,9 @@ public class BotTwoTeleopPreset extends OpMode {
     private NormalizedColorSensor colorSensorRightBack;
     private NormalizedColorSensor colorSensorLeftBack;
 
+
+
+
     /* =======================================================================================
      * Drive telemetry
      * ======================================================================================= */
@@ -66,11 +71,13 @@ public class BotTwoTeleopPreset extends OpMode {
 
 
 
+
     /*
      * Code to run ONCE when the driver hits INIT
      */
     @Override
     public void init() {
+        timer = new Timer();
 
         mapHardware();
         configureMotors();
@@ -246,6 +253,9 @@ public class BotTwoTeleopPreset extends OpMode {
     }
 
     private void handlePushers() {
+
+        oneClickShooter();
+
         if (gamepad2.left_bumper) {
             leftPusher.setVelocity(LEFT_PUSHER_VELOCITY);
             if (gamepad1.right_bumper) {
@@ -263,6 +273,28 @@ public class BotTwoTeleopPreset extends OpMode {
 
         } else {
             rightPusher.setVelocity(0);
+        }
+    }
+
+    private void oneClickShooter() {
+
+        timer.resetTimer();
+
+        if (gamepad2.right_trigger > 0) {
+            intake.setPower(INTAKE_POWER);
+        }
+            if (timer.getElapsedTimeSeconds() >= 0.25) {
+                rightPusher.setVelocity(2400);
+
+
+            if (timer.getElapsedTimeSeconds() >= 0.5) {
+                rightPusher.setVelocity(0);
+                leftPusher.setVelocity(-2400);
+            }
+            if (shooter.getVelocity() < 1200) {
+                shooter.setVelocity(1200);
+                rightPusher.setVelocity(2400);
+            }
         }
     }
 
